@@ -1,0 +1,83 @@
+#include <QApplication>
+#include <QMediaPlayer>
+#include <QFileDialog>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QSlider>
+#include <QPushButton>
+#include <QVideoWidget>
+
+int main(int argc, char *argv[])
+{
+    QApplication app(argc, argv);
+
+    // 创建主窗口和视频播放器对象
+    QWidget *window = new QWidget;
+    QMediaPlayer *player = new QMediaPlayer;
+    QVideoWidget *videoWidget = new QVideoWidget;
+
+    // 设置视频播放窗口
+    player->setVideoOutput(videoWidget);
+
+    // 创建界面控件
+    QLabel *titleLabel = new QLabel("Video Player");
+    QLabel *statusLabel = new QLabel("Ready");
+    QSlider *progressSlider = new QSlider(Qt::Horizontal);
+    QPushButton *playButton = new QPushButton("Play");
+    QPushButton *pauseButton = new QPushButton("Pause");
+    QPushButton *stopButton = new QPushButton("Stop");
+    QPushButton *openButton = new QPushButton("Open");
+
+    // 布局控件
+    QHBoxLayout *buttonLayout = new QHBoxLayout;
+    buttonLayout->addWidget(playButton);
+    buttonLayout->addWidget(pauseButton);
+    buttonLayout->addWidget(stopButton);
+    buttonLayout->addWidget(openButton);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout;
+    mainLayout->addWidget(titleLabel);
+    mainLayout->addWidget(statusLabel);
+    mainLayout->addWidget(videoWidget);
+    mainLayout->addWidget(progressSlider);
+    mainLayout->addLayout(buttonLayout);
+
+    window->setLayout(mainLayout);
+    window->show();
+
+    // 连接信号和槽函数
+    QObject::connect(openButton, &QPushButton::clicked, [=](){
+        QString fileName = QFileDialog::getOpenFileName(window, "Open Video File", ".", "Video Files (*.mp4 *.avi)");
+        if (!fileName.isEmpty()) {
+            player->setMedia(QUrl::fromLocalFile(fileName));
+            statusLabel->setText("File opened: " + fileName);
+            progressSlider->setRange(0, player->duration() / 1000);
+        }
+    });
+
+    QObject::connect(playButton, &QPushButton::clicked, [=](){
+        player->play();
+        statusLabel->setText("Playing");
+    });
+
+    QObject::connect(pauseButton, &QPushButton::clicked, [=](){
+        player->pause();
+        statusLabel->setText("Paused");
+    });
+
+    QObject::connect(stopButton, &QPushButton::clicked, [=](){
+        player->stop();
+        statusLabel->setText("Stopped");
+    });
+
+    QObject::connect(progressSlider, &QSlider::sliderMoved, [=](int value){
+        player->setPosition(value * 1000);
+    });
+
+    QObject::connect(player, &QMediaPlayer::positionChanged, [=](qint64 value){
+        progressSlider->setValue(value / 1000);
+    });
+
+    return app.exec();
+}
