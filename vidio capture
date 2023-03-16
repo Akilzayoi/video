@@ -1,0 +1,64 @@
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <ctime>
+
+using namespace std;
+using namespace cv;
+
+int main() {
+    // 打开摄像头
+    VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        cerr << "Failed to open camera." << endl;
+        return -1;
+    }
+
+    // 设置视频帧大小和帧率
+    int frame_width = cap.get(CAP_PROP_FRAME_WIDTH);
+    int frame_height = cap.get(CAP_PROP_FRAME_HEIGHT);
+    int fps = 25;
+
+    // 创建VideoWriter对象，指定输出文件名和视频编码器
+    time_t now = time(nullptr);
+    string filename = "output_" + to_string(now) + ".avi";
+    VideoWriter video(filename, VideoWriter::fourcc('M','J','P','G'), fps, Size(frame_width, frame_height));
+
+    // 检查VideoWriter是否创建成功
+    if (!video.isOpened()) {
+        cerr << "Failed to create VideoWriter." << endl;
+        return -1;
+    }
+
+    // 录制视频
+    Mat frame;
+    while (true) {
+        // 读取视频帧
+        cap.read(frame);
+
+        // 检查帧是否读取成功
+        if (frame.empty()) {
+            cerr << "Failed to read frame." << endl;
+            break;
+        }
+
+        // 写入视频帧到文件中
+        video.write(frame);
+
+        // 在屏幕上显示实时视频画面
+        imshow("Video", frame);
+
+        // 等待按下ESC键退出
+        if (waitKey(1) == 27) {
+            break;
+        }
+    }
+
+    // 关闭摄像头和VideoWriter
+    cap.release();
+    video.release();
+
+    // 关闭显示窗口
+    destroyAllWindows();
+
+    return 0;
+}
