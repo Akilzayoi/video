@@ -1,0 +1,76 @@
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/avutil.h>
+#include <libswscale/swscale.h>
+
+using namespace std;
+using namespace cv;
+
+int main(int argc, char** argv) {
+    // 创建视频编码器
+    AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
+    AVCodecContext* codec_ctx = avcodec_alloc_context3(codec);
+    codec_ctx->bit_rate = 400000;
+    codec_ctx->width = 640;
+    codec_ctx->height = 480;
+    codec_ctx->time_base = (AVRational){1, 25};
+    codec_ctx->gop_size = 10;
+    codec_ctx->max_b_frames = 1;
+    codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+    avcodec_open2(codec_ctx, codec, NULL);
+
+    // 创建视频输出文件
+    AVFormatContext* format_ctx = NULL;
+    avformat_alloc_output_context2(&format_ctx, NULL, NULL, "output.avi");
+    AVOutputFormat* output_fmt = format_ctx->oformat;
+    AVStream* video_stream = avformat_new_stream(format_ctx, NULL);
+    avcodec_parameters_from_context(video_stream->codecpar, codec_ctx);
+
+    // 打开视频输出文件
+    avio_open(&format_ctx->pb, "output.avi", AVIO_FLAG_WRITE);
+    avformat_write_header(format_ctx, NULL);
+
+    // 创建屏幕截图器
+    VideoCapture cap(0);
+
+    // 截图并编码为视频帧
+    AVFrame* frame = av_frame_alloc();
+    AVPacket* pkt = av_packet_alloc();
+    int frame_count = 0;
+    while (frame_count < 300) {  // 录制 300 帧视频
+        Mat img;
+        cap.read(img);
+        resize(img, img, Size(codec_ctx->width, codec_ctx->height));
+        cvtColor(img, img, COLOR_BGR2YUV_I420);
+
+        frame->format = AV_PIX_FMT_YUV420P;
+        frame->width = codec_ctx->width;
+        frame->height = codec_ctx->height;
+        av_frame_get_buffer(frame, 0);
+        memcpy(frame->data[0], img.data, codec_ctx->width * codec_ctx->height);
+        memcpy(frame->data[1], img.data + codec_ctx->width * codec_ctx->height, codec_ctx->width * codec_ctx->height / 4);
+        memcpy(frame->data[2], img.data + codec_ctx->width * codec_ctx->height * 5 / 4, codec_ctx->width * codec_ctx->height / 4);
+
+        frame->pts = frame_count * codec_ctx->time_base.num;
+        avcodec_send_frame(codec_ctx, frame);
+        while (avcodec_receive_packet(codec_ctx, pkt) == 0) {
+            pkt->stream_index = video_stream->index;
+            av_interleaved_write_frame(format_ctx, pkt);
+            av_packet_unref(pkt);
+        }
+
+        frame_count++;
+    }
+
+    // 结束录制
+    av_write_trailer(format_ctx);
+    avio_close(format_ctx->pb);
+    avformat_free_context(format_ctx);
+    avcodec_free_context(&codec_ctx);
+    av_frame_free(&frame);
+    av_packet_free(&pkt);
+
+    return 0;
+}
